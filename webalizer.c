@@ -268,6 +268,83 @@ char    pie_color2[]  = "#80ffc0";            /* pie additionnal color 2  */
 char    pie_color3[]  = "#ff00ff";            /* pie additionnal color 3  */
 char    pie_color4[]  = "#ffc080";            /* pie additionnal color 4  */
 
+
+/*********************************************/
+/* extra functions added by jongsuny         */
+/*********************************************/
+char    log_start_time[]  = "00:00:00";       /* default log filter start time  */
+char 	log_end_time[]    = "23:59:59";       /* default log filter end time    */
+char 	interest_ip[]="255.255.255.255";
+char 	*log_start_time_p;
+char 	*log_end_time_p;
+char 	*interest_ip_p;
+/*********************************************/
+/* 			ip_preffix_match				 */
+/* Determine if current ip is interested.	 */
+/* This function also support prefix match.	 */
+/* Like your interest ip is 123.123.123.123  */
+/* then other ip would be ignored		     */
+/* If your interest ip is 123.*	,			 */
+/* then just input 123. 					 */
+/* and only those start with 123. ips 		 */
+/* will be processed						 */
+/* @author jongsuny.a4l8888@gmail.com		 */
+/* @adddate 2013/05/21						 */
+/* @param ip the ip from log records.		 */
+/* @param prefix the interest ip prefix.	 */
+/*********************************************/
+
+int ip_preffix_match(char *ip,char *prefix)
+{
+	int a=0;
+	int b=0;
+	while(1)
+	{
+		a=*ip++;
+		b=*prefix++;
+		if(a*b==0)
+			return 0;
+		else if(a!=b)
+			return -1;
+	}
+}
+/*****************************************************************/
+/*                                                               */
+/* JDATE  - Julian date calculator                               */
+/*                                                               */
+/* Calculates the number of days since Jan 1, 0000.              */
+/*                                                               */
+/* Originally written by Bradford L. Barrett (03/17/1988)        */
+/* Returns an unsigned long value representing the number of     */
+/* days since January 1, 0000.                                   */
+/*                                                               */
+/* Note: Due to the changes made by Pope Gregory XIII in the     */
+/*       16th Centyry (Feb 24, 1582), dates before 1583 will     */
+/*       not return a truely accurate number (will be at least   */
+/*       10 days off).  Somehow, I don't think this will         */
+/*       present much of a problem for most situations :)        */
+/*                                                               */
+/* Usage: days = jdate(day, month, year)                         */
+/*                                                               */
+/* The number returned is adjusted by 5 to facilitate day of     */
+/* week calculations.  The mod of the returned value gives the   */
+/* day of the week the date is.  (ie: dow = days % 7 ) where     */
+/* dow will return 0=Sunday, 1=Monday, 2=Tuesday, etc...         */
+/*                                                               */
+/*****************************************************************/
+int is_valid_time_format(char *t)
+{
+	char *time=t;
+	int ind[]={0,1,3,4,6,7};
+	int i=0;
+	for(;i<6;i++)
+			if(!((*time+ind[i])>='0' && *(time+ind[i])<='9'))
+					return 0;
+	if(!(*(time+2)==':'&&*(time+5)==':'))
+			return 0;
+	return 1;
+}
+
 /*********************************************/
 /* MAIN - start here                         */
 /*********************************************/
@@ -319,11 +396,51 @@ int main(int argc, char *argv[])
       get_config(tmp_buf);
 
    /* get command line options */
+   static struct option long_options[] = {
+            {"start",     required_argument, 0,  0 }, 
+            {"end",  required_argument, 0,  0 }, 
+            {"ip",    required_argument, 0,  0 },
+			{0,         0,                 0,  0 }
+        };
+   int option_index=-1;
+   log_start_time_p=log_start_time;
+   log_end_time_p=log_end_time;
+   interest_ip_p=interest_ip;
    opterr = 0;     /* disable parser errors */
-   while ((i=getopt(argc,argv,"a:A:bc:C:dD:e:E:fF:g:GhHiI:jJ:k:K:l:Lm:M:n:N:o:O:pP:qQr:R:s:S:t:Tu:U:vVwW:x:XYz:Z"))!=EOF)
+   while (1)
    {
+	   i=getopt_long(argc,argv,"1:2:a:A:bc:C:dD:e:E:fF:g:GhHiI:jJ:k:K:l:Lm:M:n:N:o:O:pP:qQr:R:s:S:t:Tu:U:vVwW:x:XYz:Z",long_options,&option_index);
+	   if(i==-1)
+                break;
       switch (i)
       {
+        case 0:
+		switch(option_index)
+		{
+		       case 0: 
+	       		 if(!is_valid_time_format(optarg))
+	       		 {
+	       			fprintf(stderr,"invalid log filer start time got!valid[00:00:00] your input:[%s]\n",optarg);
+	       		 }
+	             else
+	            	 strcpy(log_start_time_p,optarg);
+	       		 	 option_index=-1;
+               		 break;
+		        case 1:
+					if(!is_valid_time_format(optarg))
+					{
+                         fprintf(stderr,"invalid log filer end time got!valid[00:00:00] your input:[%s]\n",optarg);
+					}
+                    else 
+                         strcpy(log_end_time_p,optarg);
+					option_index=-1;
+	                break;
+       			 case 2: 
+					strncpy(interest_ip,optarg,15);
+					fprintf(stderr,"using interest ip filter,your input is [%s]:actually using [%s]\n",optarg,interest_ip);
+				 break; 
+		}
+	break;
         case 'a': add_nlist(optarg,&hidden_agents); break; /* Hide agents   */
         case 'A': ntop_agents=atoi(optarg);  break;  /* Top agents          */
         case 'b': ignore_state=1;            break;  /* Ignore state file   */
@@ -448,6 +565,11 @@ int main(int argc, char *argv[])
          add_glist("mamma.com      query="  ,&search_list);
          add_glist("alltheweb.com  q="      ,&search_list);
          add_glist("northernlight.com qr="  ,&search_list);
+         add_glist("naver.com query="	    ,&search_list);
+         add_glist("baidu.com 	wd="	    ,&search_list);
+         add_glist("so.com 			q="	    ,&search_list);
+         add_glist("soso.com 		w="	    ,&search_list);
+         add_glist("sogou.com 	query="	    ,&search_list);
       }
    }
 
@@ -735,7 +857,20 @@ int main(int argc, char *argv[])
          rec_hour=atoi(&log_rec.datetime[13]);   /* get hour number         */
          rec_min =atoi(&log_rec.datetime[16]);   /* get minute number       */
          rec_sec =atoi(&log_rec.datetime[19]);   /* get second number       */
-
+		 char rec_cur_time[9];
+		 sprintf(rec_cur_time,"%02d:%02d:%02d",rec_hour,rec_min,rec_sec);
+		 if(strcmp(rec_cur_time,log_start_time_p)<0||strcmp(rec_cur_time,log_end_time_p)>0)
+		 {
+			//current record is out of processing log time span.
+			total_rec--;
+			continue;
+		 }
+		 if(strcmp(interest_ip,"255.255.255.255")!=0 && ip_preffix_match(interest_ip,log_rec.hostname)!=0)
+		 {
+			//current record's visitor's ip is not interested.
+			total_rec--;
+			continue;
+		 }
          /* Kludge for Netscape server time (0-24?) error                   */
          if (rec_hour>23) rec_hour=0;
 
